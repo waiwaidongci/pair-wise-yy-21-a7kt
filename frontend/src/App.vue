@@ -1,12 +1,21 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed } from "vue";
+import { RouterView, useRoute, useRouter } from "vue-router";
 import { routes } from "./router/routes";
-import { mockData } from "./mocks/seedData";
+import { useAuthStore } from "./stores/AuthStore";
+import { ROLE_TEXT } from "./constants/Roles";
 import StatusBadge from "./components/common/StatusBadge.vue";
-import StatCard from "./components/common/StatCard.vue";
-const active = ref<string>(routes[0]?.route ?? "/dashboard");
-const current = computed(() => routes.find((route) => route.route === active.value) ?? routes[0]);
-const entries = Object.entries(mockData);
+
+const route = useRoute();
+const router = useRouter();
+const authStore = useAuthStore();
+
+const roleText = computed(() => ROLE_TEXT[authStore.role as keyof typeof ROLE_TEXT] ?? authStore.role);
+const go = (path: string) => router.push(path);
+const logout = () => {
+  authStore.logout();
+  router.push("/login");
+};
 </script>
 
 <template>
@@ -14,13 +23,31 @@ const entries = Object.entries(mockData);
     <aside>
       <div class="brand">电力配网抢修工单系统</div>
       <nav>
-        <button v-for="route in routes" :key="route.route" :class="{ active: active === route.route }" @click="active = route.route">{{ route.name }}</button>
+        <button
+          v-for="item in routes"
+          :key="item.route"
+          :class="{ active: route.path === item.route }"
+          @click="go(item.route)"
+        >
+          {{ item.name }}
+        </button>
       </nav>
+      <div v-if="authStore.user" class="identity">
+        <StatusBadge :value="roleText" tone="neutral" />
+        <p class="identity-name">{{ authStore.user.name }}</p>
+        <p v-if="authStore.user.team_id" class="muted small">所属班组 #{{ authStore.user.team_id }}</p>
+        <button class="btn ghost btn-block" @click="logout">切换身份</button>
+      </div>
     </aside>
     <main class="page">
-      <section class="page-head"><div><p class="eyebrow">grid-repair</p><h1>{{ current?.name }}</h1></div><StatusBadge value="LOCAL_DATA" /></section>
-      <section class="metrics"><StatCard label="核心模型" :value="entries.length" /><StatCard label="共享枚举" :value="3" /><StatCard label="本地记录" :value="entries.reduce((s, [, rows]) => s + rows.length, 0)" /></section>
-      <section class="workbench"><div class="panel wide"><h2>业务数据</h2><article class="row" v-for="[key, rows] in entries" :key="key"><strong>{{ key }}</strong><span>{{ rows.length }} 条</span><StatusBadge value="READY" /></article></div><div class="panel"><h2>联动检查</h2><p>页面、store、API、构造器、日志模板和枚举常量均按提示词拆分。</p></div></section>
+      <section class="page-head">
+        <div>
+          <p class="eyebrow">grid-repair</p>
+          <h1>{{ route.meta.title ?? "电力配网抢修" }}</h1>
+        </div>
+        <StatusBadge value="LOCAL_DATA" />
+      </section>
+      <RouterView />
     </main>
   </div>
 </template>

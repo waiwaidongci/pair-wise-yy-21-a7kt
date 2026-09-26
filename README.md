@@ -44,6 +44,8 @@ backend/src/routes, controllers, services, models, repositories, middlewares, co
 - `BACKEND_PORT`: 后端端口，默认 `21104`
 - `DB_PORT`: 数据库宿主机端口
 - `DB_USER/DB_PASSWORD/DB_NAME`: 本地数据库凭据
+- `JWT_SECRET/JWT_EXPIRES_IN`: JWT 签名密钥与有效期
+- `RATE_LIMIT_MAX/RATE_LIMIT_WINDOW_MS`: 接口限流阈值（每 IP 固定窗口）
 
 ## Docker 部署说明
 
@@ -57,6 +59,22 @@ backend/src/routes, controllers, services, models, repositories, middlewares, co
 - FaultType: constants/FaultType、types/FaultType、constructors、logTemplates、errorMessages、筛选器、展示组件/控制器均有引用。
 - TicketStatus: constants/TicketStatus、types/TicketStatus、constructors、logTemplates、errorMessages、筛选器、展示组件/控制器均有引用。
 - AssetHealthStatus: constants/AssetHealthStatus、types/AssetHealthStatus、constructors、logTemplates、errorMessages、筛选器、展示组件/控制器均有引用。
+- PartUsageStatus（备件申请状态 PENDING/APPROVED/REJECTED/RETURNED）:
+  - 后端：`backend/src/constants/PartUsageStatus.ts`、`models/SparePartUsage.ts`、`types/SparePartUsagePayload.ts`、`constructors/SparePartUsageDtoFactory.ts`、`services/SparePartUsageService.ts`、`controllers/SparePartUsageController.ts`、`seed.ts`、`utils/formatters.ts`
+  - 前端：`frontend/src/constants/PartUsageStatus.ts`、`constants/statusText.ts`、`types/SparePartUsage.ts`、`constructors/SparePartUsageConstructor.ts`、`stores/SparePartUsageStore.ts`、`pages/PartsPage.vue`、`components/common/ApprovalPanel.vue`、`components/common/StatusBadge.vue`、`mocks/seedData.ts`
+- Roles（RBAC：DISPATCHER/TEAM_LEADER/WAREHOUSE_KEEPER/AUDITOR）:
+  - 后端：`constants/Roles.ts`、`middlewares/authMiddleware.ts`、`middlewares/rbacMiddleware.ts`、`repositories/UserRepository.ts`、`controllers/AuthController.ts`、`seed.ts`
+  - 前端：`constants/Roles.ts`、`utils/rbac.ts`、`stores/AuthStore.ts`、`api/Auth.ts`、`pages/LoginPage.vue`、`pages/PartsPage.vue`、`router/index.ts`
+- StockFlow（库存流水 OUTBOUND/INBOUND/RETURN/ADJUST）: 后端 `constants/StockFlow.ts`、`models/StockLog.ts`、`constructors/StockLogDtoFactory.ts`、`services/SparePartStockService.ts`；前端 `constants/StockFlow.ts`、`types/StockLog.ts`、`pages/PartsPage.vue`。
+
+## 备件领用审批台（RBAC 与库存规则）
+
+- 仓管（WAREHOUSE_KEEPER）：可按工单、仓库、申请状态筛选待审批记录；批准前系统核对申请量与可用库存，库存不足会标明缺多少并保留「待审批」，库存充足批准后立即扣减库存并写入库存流水；驳回必须填写原因。
+- 班组长（TEAM_LEADER）：只能查看本组（服务端强制 `team_id` 过滤）的记录，并为自己班组的工单提交材料申请；不能审批。
+- 审计员（AUDITOR）：只读，可查看全部申请与库存流水，任何写操作返回 403 并直接说明原因。
+- 调度员（DISPATCHER）：全局只读旁观。
+- 审批结果（已批准/已驳回）、库存余量、审批人和审批时间、驳回原因都持久在申请记录上；越权请求统一返回 `RBAC_DENIED` 与中文原因（如"仅仓管可批准备件申请，当前身份为「审计员」，不能操作"）。
+- 演示账号：201 李仓管、301/302 张/赵班长、401 周审计、101 王调度；`POST /api/auth/login {"user_id":201}` 签发 JWT，开发期也可用 `x-user-id` / `x-role` 请求头联调。
 
 ## 为什么会牵一发动全身
 
