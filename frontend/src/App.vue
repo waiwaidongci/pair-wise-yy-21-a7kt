@@ -1,26 +1,61 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { routes } from "./router/routes";
-import { mockData } from "./mocks/seedData";
+import { computed, onMounted, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { storeToRefs } from "pinia";
+import { routes as pageRoutes } from "./router/routes";
+import { useSessionStore } from "./stores/SessionStore";
 import StatusBadge from "./components/common/StatusBadge.vue";
-import StatCard from "./components/common/StatCard.vue";
-const active = ref<string>(routes[0]?.route ?? "/dashboard");
-const current = computed(() => routes.find((route) => route.route === active.value) ?? routes[0]);
-const entries = Object.entries(mockData);
+
+const session = useSessionStore();
+const route = useRoute();
+const router = useRouter();
+const { user, roleText } = storeToRefs(session);
+
+const reason = ref("");
+
+onMounted(() => {
+  session.restore();
+  reason.value = (route.query.reason as string) ?? "";
+});
+
+const navItems = computed(() =>
+  pageRoutes.filter((item) => typeof item.name === "string" && item.path !== "/login")
+);
+
+const logout = () => {
+  session.clear();
+  router.replace("/login");
+};
 </script>
 
 <template>
-  <div class="shell">
+  <router-view v-if="route.meta.public" />
+  <div v-else class="shell">
     <aside>
       <div class="brand">电力配网抢修工单系统</div>
       <nav>
-        <button v-for="route in routes" :key="route.route" :class="{ active: active === route.route }" @click="active = route.route">{{ route.name }}</button>
+        <router-link v-for="item in navItems" :key="item.path" :to="item.path" class="nav-btn" active-class="active">
+          {{ item.name }}
+        </router-link>
       </nav>
+      <div class="session-box">
+        <template v-if="user">
+          <div class="session-user">{{ user.name }} · {{ roleText }}<template v-if="user.teamId">（{{ user.teamId }} 组）</template></div>
+          <button class="logout-btn" @click="logout">退出登录</button>
+        </template>
+        <router-link v-else class="nav-btn" to="/login">去登录</router-link>
+      </div>
     </aside>
     <main class="page">
-      <section class="page-head"><div><p class="eyebrow">grid-repair</p><h1>{{ current?.name }}</h1></div><StatusBadge value="LOCAL_DATA" /></section>
-      <section class="metrics"><StatCard label="核心模型" :value="entries.length" /><StatCard label="共享枚举" :value="3" /><StatCard label="本地记录" :value="entries.reduce((s, [, rows]) => s + rows.length, 0)" /></section>
-      <section class="workbench"><div class="panel wide"><h2>业务数据</h2><article class="row" v-for="[key, rows] in entries" :key="key"><strong>{{ key }}</strong><span>{{ rows.length }} 条</span><StatusBadge value="READY" /></article></div><div class="panel"><h2>联动检查</h2><p>页面、store、API、构造器、日志模板和枚举常量均按提示词拆分。</p></div></section>
+      <section class="page-head">
+        <div>
+          <p class="eyebrow">grid-repair</p>
+          <h1>{{ route.name ?? "备件领用" }}</h1>
+        </div>
+        <StatusBadge :value="session.readOnly ? '只读模式' : 'JWT_RBAC'" />
+      </section>
+      <div v-if="reason" class="deny-banner">⛔ {{ reason }}</div>
+      <router-view />
     </main>
   </div>
 </template>
